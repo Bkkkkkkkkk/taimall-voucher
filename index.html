@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台茂購物中心 禮券適用查詢系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; }
+        .status-allowed { background-color: #def7ec; color: #03543f; border: 1px solid #84e1bc; }
+        .status-excluded { background-color: #fde8e8; color: #9b1c1c; border: 1px solid #f8b4b4; }
+        .status-conditional { background-color: #fdf6b2; color: #723b13; border: 1px solid #faca15; }
+        body { background-color: #fdf5e6; } /* 米黃色 (Old Lace) */
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div class="max-w-5xl mx-auto p-4 md:p-6">
+        <!-- Header -->
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">台茂購物中心 禮券適用查詢</h1>
+            <p class="text-gray-500">快速查詢指定櫃位是否可以使用台茂禮券</p>
+            <p class="text-sm text-red-500 mt-1">※ 外送平台全面不配合使用此禮券 ※</p>
+        </header>
+
+        <!-- Search and Filter Controls -->
+        <div class="bg-white p-4 rounded-xl shadow-sm mb-6 sticky top-2 z-10 border border-gray-100">
+            <div class="flex flex-col md:flex-row gap-4 justify-between items-center">
+                <div class="w-full md:w-1/2 relative">
+                    <input type="text" id="searchInput" placeholder="請輸入店家名稱 (例如: 星巴克, UNIQLO)..." 
+                           class="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow">
+                    <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    </div>
+                </div>
+                
+                <div class="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+                    <button class="filter-btn active px-4 py-2 rounded-lg font-medium text-sm transition-colors bg-blue-600 text-white" data-filter="all">全部顯示</button>
+                    <button class="filter-btn px-4 py-2 rounded-lg font-medium text-sm transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200" data-filter="allowed">🟢 可使用</button>
+                    <button class="filter-btn px-4 py-2 rounded-lg font-medium text-sm transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200" data-filter="issue">🔴 不適用 / 🟡 條件限制</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Grid -->
+        <div id="resultsInfo" class="mb-4 text-gray-600 font-medium"></div>
+        <div id="storeGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Store cards will be injected here by JavaScript -->
+        </div>
+    </div>
+
+    <script>
+        // Data integration: merging the stores and the exclusion rules
+        const rawStores = [
+            // --- 美食餐飲 ---
+            { name: "海底撈", category: "美食餐飲", status: "excluded" },
+            { name: "老乾杯", category: "美食餐飲", status: "allowed" },
+            { name: "黑毛屋", category: "美食餐飲", status: "allowed" },
+            { name: "壽司郎", category: "美食餐飲", status: "excluded" },
+            { name: "Magic Touch 點爭鮮", category: "美食餐飲", status: "allowed" },
+            { name: "大戶屋", category: "美食餐飲", status: "allowed" },
+            { name: "花月嵐", category: "美食餐飲", status: "allowed" },
+            { name: "原燒日式燒肉", category: "美食餐飲", status: "allowed" },
+            { name: "涓豆腐", category: "美食餐飲", status: "allowed" },
+            { name: "長壽韓式料理", category: "美食餐飲", status: "allowed" },
+            { name: "雪嶽山", category: "美食餐飲", status: "allowed" },
+            { name: "瓦城", category: "美食餐飲", status: "allowed" },
+            { name: "開飯川食堂", category: "美食餐飲", status: "allowed" },
+            { name: "漢來上海湯包", category: "美食餐飲", status: "allowed" },
+            { name: "上菜片皮鴨專賣店", category: "美食餐飲", status: "allowed" },
+            { name: "莆田", category: "美食餐飲", status: "allowed" },
+            { name: "點點心", category: "美食餐飲", status: "allowed" },
+            { name: "帕泰家", category: "美食餐飲", status: "allowed" },
+            { name: "貳樓", category: "美食餐飲", status: "allowed" },
+            { name: "NINI 尼尼義大利餐廳", category: "美食餐飲", status: "allowed" },
+            { name: "尖牙義式廚房", category: "美食餐飲", status: "allowed" },
+            { name: "涮之華", category: "美食餐飲", status: "allowed" },
+            { name: "雞湯大叔", category: "美食餐飲", status: "allowed" },
+            { name: "島語 (島語自助餐廳)", category: "美食餐飲", status: "excluded" },
+            { name: "阪前鐵板燒", category: "美食餐飲", status: "allowed" },
+            { name: "凱林鐵板燒", category: "美食餐飲", status: "allowed" },
+            { name: "濠誠牛排", category: "美食餐飲", status: "allowed" },
+            { name: "八番赤野", category: "美食餐飲", status: "allowed" },
+            { name: "TGI FRIDAYS", category: "美食餐飲", status: "allowed" },
+            { name: "KFC 肯德基", category: "美食餐飲", status: "excluded" },
+            { name: "漢堡王", category: "美食餐飲", status: "excluded" },
+            { name: "STARBUCKS COFFEE 星巴克", category: "美食餐飲", status: "conditional", note: "「儲值」不適用" },
+            { name: "春水堂人文茶館", category: "美食餐飲", status: "allowed" },
+            { name: "LOUISA 路易莎", category: "美食餐飲", status: "excluded" },
+            { name: "茶湯會", category: "美食餐飲", status: "excluded" },
+            { name: "天仁茗茶 / 喫茶趣 Togo", category: "美食餐飲", status: "allowed" },
+            { name: "小南門", category: "美食餐飲", status: "allowed" },
+            { name: "Haagen-Dazs", category: "美食餐飲", status: "conditional", note: "「儲值」不適用" },
+            { name: "COLD STONE", category: "美食餐飲", status: "allowed" },
+            { name: "Mister Donut", category: "美食餐飲", status: "allowed" },
+            { name: "Yamazaki 山崎麵包", category: "美食餐飲", status: "allowed" },
+            { name: "饅饅好食", category: "美食餐飲", status: "allowed" },
+            { name: "糖村", category: "美食餐飲", status: "allowed" },
+            { name: "洪瑞珍", category: "美食餐飲", status: "allowed" },
+            { name: "coffee farm (咖樂迪/咖啡農場)", category: "美食餐飲", status: "excluded" },
+            { name: "新東陽", category: "食品保健", status: "allowed" },
+            { name: "美珍香", category: "食品保健", status: "allowed" },
+            { name: "老行家", category: "食品保健", status: "allowed" },
+            { name: "裕珍馨", category: "食品保健", status: "allowed" },
+            { name: "韓味不二", category: "食品保健", status: "allowed" },
+            { name: "LAC", category: "食品保健", status: "allowed" },
+            { name: "農純鄉", category: "食品保健", status: "excluded" },
+            { name: "德風健康館", category: "食品保健", status: "allowed" },
+
+            // --- 美妝保養 ---
+            { name: "ESTEE LAUDER 雅詩蘭黛", category: "美妝保養", status: "allowed" },
+            { name: "SHISEIDO 資生堂", category: "美妝保養", status: "allowed" },
+            { name: "SK-II", category: "美妝保養", status: "allowed" },
+            { name: "Dior 迪奧", category: "美妝保養", status: "allowed" },
+            { name: "LANCOME 蘭蔻", category: "美妝保養", status: "allowed" },
+            { name: "Kanebo 佳麗寶", category: "美妝保養", status: "allowed" },
+            { name: "kiehl's 契爾氏", category: "美妝保養", status: "allowed" },
+            { name: "Shu uemura 植村秀", category: "美妝保養", status: "allowed" },
+            { name: "BIOTHERM 碧兒泉", category: "美妝保養", status: "allowed" },
+            { name: "CLARINS 克蘭詩", category: "美妝保養", status: "allowed" },
+            { name: "GUERLAIN 嬌蘭", category: "美妝保養", status: "excluded" },
+            { name: "YSL", category: "美妝保養", status: "allowed" },
+            { name: "M·A·C", category: "美妝保養", status: "allowed" },
+            { name: "NARS", category: "美妝保養", status: "allowed" },
+            { name: "IPSA", category: "美妝保養", status: "allowed" },
+            { name: "MAKE UP FOR EVER", category: "美妝保養", status: "allowed" },
+            { name: "Jo Malone London", category: "美妝保養", status: "allowed" },
+            { name: "L'OCCITANE 歐舒丹", category: "美妝保養", status: "allowed" },
+            { name: "SABON", category: "美妝保養", status: "allowed" },
+            { name: "LUSH", category: "美妝保養", status: "allowed" },
+            { name: "AVEDA", category: "美妝保養", status: "allowed" },
+            { name: "L'ERBOLARIO 蕾莉歐", category: "美妝保養", status: "excluded" },
+            { name: "cosmescents 伊聖詩", category: "美妝保養", status: "allowed" },
+            { name: "綠藤生機", category: "美妝保養", status: "excluded" },
+            { name: "BIOCHEM 倍優", category: "美妝保養", status: "allowed" },
+
+            // --- 運動休閒 ---
+            { name: "NIKE / NIKE KIDS", category: "運動休閒", status: "allowed" },
+            { name: "NIKE KICKS LOUNGE", category: "運動休閒", status: "allowed" },
+            { name: "adidas / adidas KIDS", category: "運動休閒", status: "allowed" },
+            { name: "adidas Originals", category: "運動休閒", status: "allowed" },
+            { name: "New Balance", category: "運動休閒", status: "allowed" },
+            { name: "PUMA / PUMA KIDS", category: "運動休閒", status: "allowed" },
+            { name: "SKECHERS / SKECHERS Kids", category: "運動休閒", status: "allowed" },
+            { name: "Under Armour", category: "運動休閒", status: "allowed" },
+            { name: "ASICS", category: "運動休閒", status: "allowed" },
+            { name: "FILA / FILA KIDS", category: "運動休閒", status: "allowed" },
+            { name: "K-SWISS", category: "運動休閒", status: "allowed" },
+            { name: "WILSON", category: "運動休閒", status: "allowed" },
+            { name: "DANSKIN", category: "運動休閒", status: "allowed" },
+            { name: "WORLD GYM 健身俱樂部", category: "休閒娛樂", status: "excluded" },
+            { name: "Arc'teryx (始祖鳥)", category: "運動休閒", status: "excluded" },
+            { name: "THE NORTH FACE / UE", category: "運動休閒", status: "allowed" },
+            { name: "Columbia", category: "運動休閒", status: "allowed" },
+            { name: "MAMMUT", category: "運動休閒", status: "allowed" },
+            { name: "AIGLE", category: "運動休閒", status: "allowed" },
+            { name: "Timberland", category: "運動休閒", status: "allowed" },
+            { name: "MERRELL", category: "運動休閒", status: "allowed" },
+            { name: "Discovery", category: "運動休閒", status: "allowed" },
+            { name: "ISPO+", category: "運動休閒", status: "allowed" },
+            { name: "BROOKS", category: "運動休閒", status: "allowed" },
+            { name: "ABC MART", category: "運動休閒", status: "allowed" },
+            { name: "CROCS", category: "運動休閒", status: "allowed" },
+            { name: "PALLADIUM", category: "運動休閒", status: "allowed" },
+            { name: "La new", category: "運動休閒", status: "allowed" },
+
+            // --- 流行服飾 ---
+            { name: "ZARA", category: "流行服飾", status: "excluded" },
+            { name: "GAP", category: "流行服飾", status: "allowed" },
+            { name: "UNIQLO", category: "流行服飾", status: "excluded" },
+            { name: "MUJI 無印良品", category: "流行服飾", status: "allowed" },
+            { name: "NET", category: "流行服飾", status: "allowed" },
+            { name: "ROOTS / roots kids", category: "流行服飾", status: "allowed" },
+            { name: "HAZZYS", category: "流行服飾", status: "allowed" },
+            { name: "LEVI'S", category: "流行服飾", status: "allowed" },
+            { name: "ONE BOY", category: "流行服飾", status: "allowed" },
+            { name: "plain-me", category: "流行服飾", status: "allowed" },
+            { name: "CACO", category: "流行服飾", status: "allowed" },
+            { name: "MO-BO", category: "流行服飾", status: "allowed" },
+            { name: "AIR SPACE / LADY", category: "流行服飾", status: "allowed" },
+            { name: "OB 嚴選", category: "流行服飾", status: "allowed" },
+            { name: "iROO", category: "流行服飾", status: "allowed" },
+            { name: "GIORDANO / Ladies", category: "流行服飾", status: "allowed" },
+            { name: "G2000", category: "流行服飾", status: "allowed" },
+            { name: "Munsingwear 企鵝", category: "流行服飾", status: "excluded" },
+            { name: "le coq sportif GOLF", category: "流行服飾", status: "excluded" },
+            { name: "WACOAL 華歌爾家族", category: "內睡衣", status: "allowed" },
+            { name: "Triumph 黛安芬 / sloggi", category: "內睡衣", status: "allowed" },
+            { name: "Mode Marie 曼黛瑪璉", category: "內睡衣", status: "allowed" },
+
+            // --- 婦幼娛樂 ---
+            { name: "奇哥 (chickabiddy)", category: "婦幼育樂", status: "excluded" },
+            { name: "麗嬰房 (Les Enphants)", category: "婦幼育樂", status: "allowed" },
+            { name: "Baby City", category: "婦幼育樂", status: "excluded" },
+            { name: "Mamaway", category: "婦幼育樂", status: "allowed" },
+            { name: "Tiger Family", category: "婦幼育樂", status: "allowed" },
+            { name: "POP MART", category: "婦幼育樂", status: "allowed" },
+            { name: "TOMICA", category: "婦幼育樂", status: "allowed" },
+            { name: "TOYWORLD", category: "婦幼育樂", status: "conditional", note: "「電玩/公仔」不適用" },
+            { name: "FunboxToys", category: "婦幼育樂", status: "allowed" },
+            { name: "野獸國", category: "婦幼育樂", status: "allowed" },
+            { name: "史萊姆實驗室", category: "婦幼育樂", status: "excluded" },
+            { name: "星奇市", category: "婦幼育樂", status: "conditional", note: "「一番賞/公仔」不適用" },
+            { name: "CATOONY WORLD 卡通尼樂園", category: "婦幼育樂", status: "conditional", note: "「兌幣機」不適用" },
+            { name: "美麗新影城", category: "休閒娛樂", status: "excluded" },
+
+            // --- 精品配件 ---
+            { name: "COACH", category: "精品配件", status: "excluded" },
+            { name: "agnès b.", category: "精品配件", status: "allowed" },
+            { name: "MONTBLANC 萬寶龍", category: "精品配件", status: "allowed" },
+            { name: "PORTER INTERNATIONAL", category: "精品配件", status: "allowed" },
+            { name: "Samsonite", category: "精品配件", status: "allowed" },
+            { name: "SWAROVSKI", category: "精品配件", status: "allowed" },
+            { name: "Pandora", category: "精品配件", status: "allowed" },
+            { name: "點睛品", category: "精品配件", status: "excluded" },
+            { name: "真愛密碼", category: "精品配件", status: "conditional", note: "「黃金/工資」不適用" },
+            { name: "凡邇珠寶", category: "精品配件", status: "conditional", note: "「黃金/工資」不適用" },
+            { name: "JINS", category: "精品配件", status: "allowed" },
+            { name: "OWNDAYS", category: "精品配件", status: "allowed" },
+            { name: "眼鏡市場", category: "精品配件", status: "allowed" },
+
+            // --- 3C生活 ---
+            { name: "Studio A", category: "3C家電", status: "excluded" },
+            { name: "小米專賣店", category: "3C家電", status: "excluded" },
+            { name: "SAMSUNG", category: "3C家電", status: "excluded" },
+            { name: "DJI", category: "3C家電", status: "excluded" },
+            { name: "LG", category: "3C家電", status: "allowed" },
+            { name: "Dyson", category: "3C家電", status: "allowed" },
+            { name: "Logitech", category: "3C家電", status: "allowed" },
+            { name: "GARMIN", category: "3C家電", status: "allowed" },
+            { name: "Panasonic", category: "3C家電", status: "excluded" },
+            { name: "Mitsubishi", category: "3C家電", status: "excluded" },
+            { name: "OSIM / tokuyo / FUJI", category: "3C家電", status: "allowed" },
+            { name: "誠品生活", category: "生活居家", status: "allowed" },
+            { name: "宜得利家居", category: "生活居家", status: "allowed" },
+            { name: "ZWILLING 德國雙人", category: "生活居家", status: "excluded" },
+            { name: "SIMMONS 席夢思", category: "生活居家", status: "excluded" },
+            { name: "POYA 寶雅", category: "藥妝生活", status: "allowed" },
+            { name: "屈臣氏 (Watsons)", category: "藥妝生活", status: "excluded" },
+            { name: "康是美", category: "藥妝生活", status: "allowed" },
+            { name: "日藥本舖", category: "藥妝生活", status: "excluded" },
+            { name: "7-11", category: "藥妝生活", status: "excluded" },
+            { name: "CARS 卡氏汽車美容", category: "藥妝生活", status: "excluded" },
+            { name: "GLORIA 葛洛麗雅", category: "藥妝生活", status: "excluded" },
+            { name: "百歡集", category: "其他", status: "excluded" }
+        ];
+
+        // Ensure stores are sorted alphabetically
+        rawStores.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+
+        const storeGrid = document.getElementById('storeGrid');
+        const searchInput = document.getElementById('searchInput');
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        const resultsInfo = document.getElementById('resultsInfo');
+
+        let currentFilter = 'all';
+        let searchQuery = '';
+
+        function renderStores() {
+            storeGrid.innerHTML = '';
+            
+            const filteredStores = rawStores.filter(store => {
+                const matchesSearch = store.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                      store.category.toLowerCase().includes(searchQuery.toLowerCase());
+                
+                let matchesFilter = true;
+                if (currentFilter === 'allowed') {
+                    matchesFilter = store.status === 'allowed';
+                } else if (currentFilter === 'issue') {
+                    matchesFilter = store.status === 'excluded' || store.status === 'conditional';
+                }
+
+                return matchesSearch && matchesFilter;
+            });
+
+            resultsInfo.textContent = `共找到 ${filteredStores.length} 間符合條件的店家`;
+
+            if(filteredStores.length === 0) {
+                storeGrid.innerHTML = `<div class="col-span-full text-center py-10 text-gray-400">找不到符合條件的店家</div>`;
+                return;
+            }
+
+            filteredStores.forEach(store => {
+                const card = document.createElement('div');
+                card.className = 'p-4 rounded-xl shadow-sm flex flex-col justify-between h-full bg-white transition-transform hover:-translate-y-1';
+                
+                let statusBadge = '';
+                let statusClass = '';
+                
+                if (store.status === 'allowed') {
+                    statusBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">🟢 可以使用</span>';
+                    statusClass = 'border-l-4 border-green-400';
+                } else if (store.status === 'excluded') {
+                    statusBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">🔴 不適用</span>';
+                    statusClass = 'border-l-4 border-red-500 status-excluded';
+                } else if (store.status === 'conditional') {
+                    statusBadge = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">🟡 條件限制: ${store.note}</span>`;
+                    statusClass = 'border-l-4 border-yellow-400 status-conditional';
+                }
+
+                card.classList.add(...statusClass.split(' '));
+
+                card.innerHTML = `
+                    <div>
+                        <div class="text-xs text-gray-500 mb-1">${store.category}</div>
+                        <h3 class="text-lg font-bold text-gray-900 mb-2">${store.name}</h3>
+                    </div>
+                    <div class="mt-3">
+                        ${statusBadge}
+                    </div>
+                `;
+                
+                storeGrid.appendChild(card);
+            });
+        }
+
+        // Event Listeners
+        searchInput.addEventListener('input', (e) => {
+            searchQuery = e.target.value;
+            renderStores();
+        });
+
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                // Update active button styling
+                filterBtns.forEach(b => {
+                    b.classList.remove('bg-blue-600', 'text-white');
+                    b.classList.add('bg-gray-100', 'text-gray-600');
+                });
+                const clickedBtn = e.currentTarget;
+                clickedBtn.classList.remove('bg-gray-100', 'text-gray-600');
+                clickedBtn.classList.add('bg-blue-600', 'text-white');
+
+                currentFilter = clickedBtn.dataset.filter;
+                renderStores();
+            });
+        });
+
+        // Initial render
+        renderStores();
+    </script>
+</body>
+</html>
